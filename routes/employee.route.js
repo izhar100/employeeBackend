@@ -3,19 +3,46 @@ const { employModel } = require('../models/employee.model')
 const { auth } = require('../middleware/auth.middleware')
 const employeeRouter=express.Router()
 employeeRouter.use(auth)
-employeeRouter.get("/",async(req,res)=>{
+employeeRouter.get("/", async (req, res) => {
     try {
-        const employee=await employModel.find()
-        if(employee.length>0){
-            res.status(200).json({employee:employee})
-        }else{
-            res.status(200).json({message:"No employee found"})
-        }
+      const { search, department, sort, page = 1, limit = 5 } = req.query;
+  
+      let query = {};
+  
+      if (search) {
+        query.$or=[
+         {first_name: {$regex:search,$options:"i"}},
+         {last_name: {$regex:search,$options:"i"}}
+        ]
+      }
+  
+      if (department) {
+        query.department = department;
+      }
+  
+      const count = await employModel.countDocuments(query);
+      const totalPages = Math.ceil(count / limit);
+  
+      const employees = await employModel
+        .find(query)
+        .sort({ salary: sort === "asc" ? 1 : -1 })
+        .skip((page - 1) * limit)
+        .limit(limit);
+  
+      if (employees.length > 0) {
+        res.status(200).json({
+          employees: employees,
+          totalPages: totalPages,
+          currentPage: parseInt(page),
+        });
+      } else {
+        res.status(200).json({ message: "No employees found" });
+      }
     } catch (error) {
-        res.status(400).json({error:error.message})
+      res.status(400).json({ error: error.message });
     }
-
 })
+  
 employeeRouter.post("/add",async(req,res)=>{
     try {
         const employee=new employModel(req.body)
